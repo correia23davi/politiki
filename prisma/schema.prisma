@@ -1,0 +1,121 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Partido {
+  id         Int           @id @default(autoincrement())
+  sigla      String        @unique
+  nome       String?
+  filiacoes  Filiacao[]
+}
+
+model Parlamentar {
+  id          Int          @id @default(autoincrement())
+  idCamara    Int?         @unique
+  idSenado    Int?         @unique
+  nome        String
+  nomeCivil   String?
+  uf          String
+  casa        String       @default("CAMARA")
+  fotoUrl     String?
+  emExercicio Boolean      @default(true)
+  atualizadoEm DateTime    @updatedAt
+  filiacoes   Filiacao[]
+  despesas    Despesa[]
+  autorias    Autoria[]
+  votos       Voto[]
+
+  @@index([nome])
+  @@index([uf])
+}
+
+// Histórico de partido: o partido vale na data de cada voto, não só o atual.
+model Filiacao {
+  id            Int         @id @default(autoincrement())
+  parlamentar   Parlamentar @relation(fields: [parlamentarId], references: [id], onDelete: Cascade)
+  parlamentarId Int
+  partido       Partido     @relation(fields: [partidoId], references: [id])
+  partidoId     Int
+  inicio        DateTime
+  fim           DateTime?
+
+  @@index([parlamentarId, inicio])
+}
+
+model Proposicao {
+  id          Int       @id @default(autoincrement())
+  idCamara    Int       @unique
+  tipo        String
+  numero      Int
+  ano         Int
+  ementa      String
+  situacao    String?
+  urlInteiroTeor String?
+  apresentadaEm DateTime?
+  autorias    Autoria[]
+  votacoes    Votacao[]
+
+  @@index([ano, tipo])
+}
+
+model Autoria {
+  proposicao    Proposicao  @relation(fields: [proposicaoId], references: [id], onDelete: Cascade)
+  proposicaoId  Int
+  parlamentar   Parlamentar @relation(fields: [parlamentarId], references: [id], onDelete: Cascade)
+  parlamentarId Int
+  proponente    Boolean     @default(false)
+
+  @@id([proposicaoId, parlamentarId])
+}
+
+model Votacao {
+  id            String      @id          // id oficial da votação (texto, ex.: "2367632-123")
+  data          DateTime
+  descricao     String?
+  aprovada      Boolean?
+  proposicao    Proposicao? @relation(fields: [proposicaoId], references: [id])
+  proposicaoId  Int?
+  votos         Voto[]
+
+  @@index([data])
+}
+
+model Voto {
+  votacao       Votacao     @relation(fields: [votacaoId], references: [id], onDelete: Cascade)
+  votacaoId     String
+  parlamentar   Parlamentar @relation(fields: [parlamentarId], references: [id], onDelete: Cascade)
+  parlamentarId Int
+  tipo          String      // Sim, Não, Abstenção, Obstrução, Art. 17, Ausente
+  partidoNaData String?
+
+  @@id([votacaoId, parlamentarId])
+  @@index([parlamentarId])
+}
+
+model Despesa {
+  id            Int         @id @default(autoincrement())
+  parlamentar   Parlamentar @relation(fields: [parlamentarId], references: [id], onDelete: Cascade)
+  parlamentarId Int
+  ano           Int
+  mes           Int
+  data          DateTime?
+  categoria     String
+  fornecedor    String?
+  documentoFornecedor String?
+  valor         Decimal     @db.Decimal(14, 2)
+  urlDocumento  String?
+  codDocumento  String      // identificador oficial da despesa (evita duplicar na recarga)
+
+  @@unique([parlamentarId, codDocumento])
+  @@index([parlamentarId, ano, mes])
+}
+
+model Coleta {
+  fonte        String   @id
+  ultimaCargaEm DateTime
+}
